@@ -1,0 +1,4 @@
+<map>
+    <string name="usb_app_location">'/data/local/tmp/virtualhere.apk'</string>
+    <boolean name="reinstall_usb_app" value="false" />
+</map>

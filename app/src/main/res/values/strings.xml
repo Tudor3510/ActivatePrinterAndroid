@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">Activate Printer</string>
+    <string name="button_text">Activate Printer</string>
+
+    <string name="prefs_file">config</string>
+    <string name="reinstall_usb_app">reinstall_usb_app</string>
+    <string name="usb_app_location">usb_app_location</string>
+    <string name="usb_app_location_def_opt">/data/local/tmp/virtualhere.apk</string>
+</resources>

@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <bool name="reinstall_usb_app_def_opt">false</bool>
+</resources>
