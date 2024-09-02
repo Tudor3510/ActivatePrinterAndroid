@@ -1,13 +1,26 @@
 package com.tudor.activateprinter;
 
+import android.app.PendingIntent;
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
+import android.hardware.usb.UsbConstants;
+import android.hardware.usb.UsbDevice;
+import android.hardware.usb.UsbDeviceConnection;
+import android.hardware.usb.UsbEndpoint;
+import android.hardware.usb.UsbInterface;
+import android.hardware.usb.UsbManager;
+import android.hardware.usb.UsbRequest;
 import android.util.Log;
 import android.widget.Toast;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.HashMap;
+import java.util.Random;
 
 public class ButtonThread extends Thread{
     private MainActivity context = null;
@@ -31,9 +44,80 @@ public class ButtonThread extends Thread{
         SharedPreferences sharedPreferences = context.getSharedPreferences(context.getResources().getString(R.string.prefs_file), Context.MODE_PRIVATE);
 
         boolean shouldReinstall = sharedPreferences.getBoolean(context.getResources().getString(R.string.reinstall_usb_app), context.getResources().getBoolean(R.bool.reinstall_usb_app_def_opt));
-
         if(shouldReinstall) reinstallApp(sharedPreferences.getString(context.getResources().getString(R.string.usb_app_location), context.getResources().getString(R.string.usb_app_location_def_opt)));
+
+        sendSCSICommand();
     }
+
+    public void sendSCSICommand()
+    {
+        UsbManager usbManager = (UsbManager) context.getSystemService(Context.USB_SERVICE);
+        HashMap<String, UsbDevice> deviceList = usbManager.getDeviceList();
+        UsbDevice device = null;
+
+        for (UsbDevice d : deviceList.values()) {
+            if (d.getVendorId() == 0x03f0 && d.getProductId() == 0x002a) {  // Vendor ID and Product ID specific to your device
+                device = d;
+            }
+        }
+
+        if (device != null) {
+            PendingIntent permissionIntent = PendingIntent.getBroadcast(context, 0, new Intent("My_usb_action"), 0);
+            usbManager.requestPermission(device, permissionIntent);
+        }
+
+        UsbDeviceConnection connection = usbManager.openDevice(device);
+
+        UsbInterface usbInterface = device.getInterface(0);
+        showToast("Interface " + usbInterface.getInterfaceClass() + " " + usbInterface.getInterfaceSubclass() + " " + usbInterface.getInterfaceProtocol(), Toast.LENGTH_SHORT);
+        UsbEndpoint endpointOut = null;
+        UsbEndpoint endpointIn = null;
+
+        // Find the appropriate endpoints
+        for (int i = 0; i < usbInterface.getEndpointCount(); i++) {
+            UsbEndpoint endpoint = usbInterface.getEndpoint(i);
+            if (endpoint.getDirection() == UsbConstants.USB_DIR_OUT) {
+                endpointOut = endpoint;
+            } else if (endpoint.getDirection() == UsbConstants.USB_DIR_IN) {
+                endpointIn = endpoint;
+            }
+        }
+        if (connection != null && connection.claimInterface(usbInterface, true)) {
+
+            // Prepare CBW (Command Block Wrapper)
+            byte[] cbw = new byte[31];
+            ByteBuffer buffer = ByteBuffer.wrap(cbw);
+            buffer.order(ByteOrder.LITTLE_ENDIAN);
+            buffer.putInt(0x43425355); // dCBWSignature 'USBC'
+            buffer.putInt(new Random().nextInt()); // dCBWTag (randomized unique identifier)
+            buffer.putInt(0); // dCBWDataTransferLength (no data transfer for this command)
+            buffer.put((byte) 0x00); // bmCBWFlags (OUT direction)
+            buffer.put((byte) 0); // bCBWLUN (Logical Unit Number, usually 0)
+            buffer.put((byte) 0x06); // bCBWCBLength (length of the SCSI CDB)
+
+            // Prepare SCSI CDB (Command Descriptor Block)
+            byte[] scsiCmd = new byte[6];
+            scsiCmd[0] = (byte) 0xD0; // Opcode (custom/vendor-specific)
+            scsiCmd[1] = (byte) 0x00; // LUN (Logical Unit Number)
+            scsiCmd[2] = (byte) 0x00; // Parameter 1 (based on the command requirements)
+            scsiCmd[3] = (byte) 0x00; // Parameter 2 (based on the command requirements)
+            scsiCmd[4] = (byte) 0x00; // Parameter 3 (based on the command requirements)
+            scsiCmd[5] = (byte) 0x00; // Parameter 4 (based on the command requirements)
+
+            buffer.put(scsiCmd); // Add the 6-byte SCSI CDB to the CBW
+
+            // Send the CBW
+            int result = connection.bulkTransfer(endpointOut, cbw, cbw.length, 1000);
+            showToast("" + result, Toast.LENGTH_SHORT);
+
+            int expectedDataLength = 36;
+            byte[] dataBuffer = new byte[expectedDataLength];
+            int receivedLength = connection.bulkTransfer(endpointIn, dataBuffer, dataBuffer.length, 1000);
+
+            showToast("Received length: " + result, Toast.LENGTH_SHORT);
+        }
+    }
+
 
     public void reinstallApp(String path)
     {
