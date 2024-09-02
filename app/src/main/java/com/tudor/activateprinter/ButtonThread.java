@@ -61,7 +61,8 @@ public class ButtonThread extends Thread{
             }
         }
 
-        if (device != null) {
+        if (device != null && !usbManager.hasPermission(device)) {
+            showToast("Trebuie sa mai cerem permisiunea inca o data", Toast.LENGTH_SHORT);
             PendingIntent permissionIntent = PendingIntent.getBroadcast(context, 0, new Intent("My_usb_action"), 0);
             usbManager.requestPermission(device, permissionIntent);
         }

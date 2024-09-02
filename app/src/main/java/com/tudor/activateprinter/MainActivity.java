@@ -2,18 +2,33 @@ package com.tudor.activateprinter;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import android.app.PendingIntent;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.content.res.XmlResourceParser;
 import android.hardware.usb.UsbDevice;
 import android.hardware.usb.UsbManager;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.widget.Toast;
 
+import org.xmlpull.v1.XmlPullParser;
+import org.xmlpull.v1.XmlPullParserException;
+
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.io.File;
 
 public class MainActivity extends AppCompatActivity {
+
+    private static final String ACTION_USB_PERMISSION = "com.tudor.activateprinter.USB_PERMISSION";
+    private UsbManager usbManager;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -29,6 +44,32 @@ public class MainActivity extends AppCompatActivity {
             editor.putString(getResources().getString(R.string.usb_app_location), getResources().getString(R.string.usb_app_location_def_opt));
             editor.apply();
         }
+
+
+        usbManager = (UsbManager) getSystemService(Context.USB_SERVICE);
+
+        int[] deviceId = parseDeviceFilter(this);
+        UsbDevice device = null;
+        HashMap<String, UsbDevice> deviceList = usbManager.getDeviceList();
+        for(UsbDevice d : deviceList.values())
+        {
+            if (d.getVendorId() == deviceId[0] && d.getProductId() == deviceId[1])
+            {
+                device = d;
+                break;
+            }
+        }
+
+        if (device == null)
+            return;
+
+
+        if (usbManager.hasPermission(device)) {
+            // You already have permission, set up device communication
+        } else {
+            PendingIntent permissionIntent = PendingIntent.getBroadcast(this, 0, new Intent(ACTION_USB_PERMISSION), 0);
+            usbManager.requestPermission(device, permissionIntent);
+        }
     }
 
 
@@ -38,22 +79,31 @@ public class MainActivity extends AppCompatActivity {
 
         ButtonThread buttonThread = new ButtonThread(this);
         buttonThread.start();
-//
-//        UsbManager usbManager = (UsbManager) getSystemService(USB_SERVICE);
-//        HashMap<String, UsbDevice> deviceList = usbManager.getDeviceList();
-//        Iterator<UsbDevice> deviceIterator = deviceList.values().iterator();
-//
-//        StringBuilder deviceNames = new StringBuilder();
-//
-//        while (deviceIterator.hasNext()) {
-//            UsbDevice device = deviceIterator.next();
-//            deviceNames.append(device.getDeviceName()).append("\n");
-//        }
-//
-//        if (deviceNames.length() == 0) {
-//            Toast.makeText(this, "No USB devices connected", Toast.LENGTH_SHORT).show();
-//        } else {
-//            Toast.makeText(this, "Connected USB devices:\n" + deviceNames.toString(), Toast.LENGTH_LONG).show();
-//        }
     }
+
+    public int[] parseDeviceFilter(Context context) {
+        int vendorId = -1;
+        int productId = -1;
+
+        XmlResourceParser parser = context.getResources().getXml(R.xml.device_filter);
+        try {
+            int eventType = parser.getEventType();
+            while (eventType != XmlPullParser.END_DOCUMENT) {
+                if (eventType == XmlPullParser.START_TAG && "usb-device".equals(parser.getName())) {
+                    vendorId = Integer.parseInt(parser.getAttributeValue(null, "vendor-id").replace("0x", ""), 16);
+                    productId = Integer.parseInt(parser.getAttributeValue(null, "product-id").replace("0x", ""), 16);
+                    break; // Assuming only one device is specified, break after finding it
+                }
+                eventType = parser.next();
+            }
+        } catch (XmlPullParserException | IOException e) {
+            Log.e("DeviceFilterParsing", "Error parsing device_filter.xml", e);
+        } finally {
+            parser.close();
+        }
+
+        return new int[]{vendorId, productId};
+    }
+
+
 }
