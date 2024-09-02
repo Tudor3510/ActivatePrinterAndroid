@@ -23,15 +23,21 @@ import java.util.HashMap;
 import java.util.Random;
 
 public class ButtonThread extends Thread{
-    private MainActivity context = null;
-
     private static final String COMMAND = "pm install -r -d ";
     private static final String SUCCESSFUL_COMMAND = "Success";
     private static final String LOG_ERROR_APP_REINSTALLATION_STRING = "AppReinstallation";
 
-    ButtonThread(MainActivity context)
+
+
+    private MainActivity context = null;
+    private int deviceVendorId = -1;
+    private int deviceProductId = -1;
+
+    ButtonThread(MainActivity context, int deviceVendorId, int deviceProductId)
     {
         this.context = context;
+        this.deviceVendorId = deviceVendorId;
+        this.deviceProductId = deviceProductId;
     }
 
     public void showToast(String toShow, int toastLength)
@@ -52,25 +58,28 @@ public class ButtonThread extends Thread{
     public void sendSCSICommand()
     {
         UsbManager usbManager = (UsbManager) context.getSystemService(Context.USB_SERVICE);
-        HashMap<String, UsbDevice> deviceList = usbManager.getDeviceList();
         UsbDevice device = null;
 
+        HashMap<String, UsbDevice> deviceList = usbManager.getDeviceList();
         for (UsbDevice d : deviceList.values()) {
-            if (d.getVendorId() == 0x03f0 && d.getProductId() == 0x002a) {  // Vendor ID and Product ID specific to your device
+            if (d.getVendorId() == deviceVendorId && d.getProductId() == deviceProductId) {  // Vendor ID and Product ID specific to your device
                 device = d;
             }
         }
 
-        if (device != null && !usbManager.hasPermission(device)) {
-            showToast("Trebuie sa mai cerem permisiunea inca o data", Toast.LENGTH_SHORT);
-            PendingIntent permissionIntent = PendingIntent.getBroadcast(context, 0, new Intent("My_usb_action"), 0);
-            usbManager.requestPermission(device, permissionIntent);
+        if (device == null) {
+            showToast("Error: device is not connected", Toast.LENGTH_SHORT);
+            return;
+        }
+
+        if (!usbManager.hasPermission(device)) {
+            showToast("Error: no permission for the device", Toast.LENGTH_SHORT);
+            return;
         }
 
         UsbDeviceConnection connection = usbManager.openDevice(device);
 
         UsbInterface usbInterface = device.getInterface(0);
-        showToast("Interface " + usbInterface.getInterfaceClass() + " " + usbInterface.getInterfaceSubclass() + " " + usbInterface.getInterfaceProtocol(), Toast.LENGTH_SHORT);
         UsbEndpoint endpointOut = null;
         UsbEndpoint endpointIn = null;
 
@@ -108,14 +117,22 @@ public class ButtonThread extends Thread{
             buffer.put(scsiCmd); // Add the 6-byte SCSI CDB to the CBW
 
             // Send the CBW
-            int result = connection.bulkTransfer(endpointOut, cbw, cbw.length, 1000);
-            showToast("" + result, Toast.LENGTH_SHORT);
+            int sentLength = connection.bulkTransfer(endpointOut, cbw, cbw.length, 1000);
+            if (sentLength < 0) {
+                showToast("Error sending the SCSI command", Toast.LENGTH_SHORT);
+                return;
+            }
 
-            int expectedDataLength = 36;
-            byte[] dataBuffer = new byte[expectedDataLength];
+            byte[] dataBuffer = new byte[cbw.length];
             int receivedLength = connection.bulkTransfer(endpointIn, dataBuffer, dataBuffer.length, 1000);
+            if (receivedLength < 0){
+                showToast("Error receiving response for SCSI command", Toast.LENGTH_SHORT);
+                return;
+            }
 
-            showToast("Received length: " + result, Toast.LENGTH_SHORT);
+            showToast("Printer activated successfully", Toast.LENGTH_SHORT);
+        }else{
+            showToast("Error with connection or interface", Toast.LENGTH_SHORT);
         }
     }
 

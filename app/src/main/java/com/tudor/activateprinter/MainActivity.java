@@ -113,5 +113,10 @@ public class MainActivity extends AppCompatActivity {
         return new int[]{vendorId, productId};
     }
 
+    @Override
+    protected void onDestroy(){
+        super.onDestroy();
+        unregisterReceiver(usbReceiver);
+    }
 
 }
