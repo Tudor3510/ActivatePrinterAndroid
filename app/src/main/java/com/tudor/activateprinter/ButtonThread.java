@@ -150,7 +150,7 @@ public class ButtonThread extends Thread{
                 if ((line = reader.readLine()) == null) break;
                 output.append(line).append("\n");
             } catch (IOException e) {
-                Log.e(LOG_ERROR_APP_REINSTALLATION_STRING, "Eroare la citirea liniilor din stdout-ul comenzii: " + e.getMessage());
+                Log.e(LOG_ERROR_APP_REINSTALLATION_STRING, "Error reading lines from command stdout: " + e.getMessage());
                 break;
             }
         }
@@ -168,7 +168,7 @@ public class ButtonThread extends Thread{
         try{
             reader.close();
         }catch (IOException e){
-            Log.e(LOG_ERROR_APP_REINSTALLATION_STRING, "Eroare la inchiderea reader-ului pt stdout-ul comenzii: " + e.getMessage());
+            Log.e(LOG_ERROR_APP_REINSTALLATION_STRING, "Error closing the reader for the stdout of the command: " + e.getMessage());
         }
     }
 }
