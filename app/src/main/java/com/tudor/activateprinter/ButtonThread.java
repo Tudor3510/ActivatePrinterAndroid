@@ -27,7 +27,7 @@ public class ButtonThread extends Thread{
 
     private static final String COMMAND = "pm install -r -d ";
     private static final String SUCCESSFUL_COMMAND = "Success";
-    private static final String LOG_ERROR_APP_REINSTALLATION_STRING = "app_reinstallation";
+    private static final String LOG_ERROR_APP_REINSTALLATION_STRING = "AppReinstallation";
 
     ButtonThread(MainActivity context)
     {
